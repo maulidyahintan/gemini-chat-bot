@@ -1,0 +1,197 @@
+import 'dotenv/config';
+import { GoogleGenAI } from '@google/genai';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import cors from 'cors';
+import express from 'express';
+import multer from 'multer';
+import fs from 'fs/promises';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+});
+
+const GEMINI_MODEL = 'gemini-2.5-flash';
+
+// Configure multer for file uploads
+const upload = multer({
+  dest: 'uploads/',
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept images and common file types
+    const allowedMimes = [
+      'image/jpeg',
+      'image/jpg', 
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'application/pdf',
+      'text/plain',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only images, PDF, and text files are allowed.'));
+    }
+  }
+});
+
+app.use(cors());
+app.use(express.json());
+
+app.use(express.static(path.join(__dirname, 'public')));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
+
+app.post('/api/chat', async (req, res) => {
+  const { conversation } = req.body;
+    try {
+        if (!conversation || !Array.isArray(conversation)) throw new Error('Invalid conversation format');
+
+        const contents = conversation.map(({role, text}) => ({
+            role,
+            parts: [{ text }],
+        }));
+
+        const response = await ai.models.generateContent({
+            model: GEMINI_MODEL,
+            contents
+        });
+
+        res.status(200).json({ result: response.text });
+    } catch (error) {
+        res.status(500).json({ error: error.message || 'Internal Server Error' });
+    }
+});
+
+// New endpoint with file upload support
+app.post('/api/chat-with-files', upload.array('files', 5), async (req, res) => {
+  try {
+    const { message, conversation } = req.body;
+    const files = req.files;
+
+    if (!message && (!files || files.length === 0)) {
+      return res.status(400).json({ error: 'Message or files are required' });
+    }
+
+    // Parse conversation history if exists
+    let conversationHistory = [];
+    if (conversation) {
+      try {
+        conversationHistory = typeof conversation === 'string' 
+          ? JSON.parse(conversation) 
+          : conversation;
+      } catch (e) {
+        console.error('Failed to parse conversation:', e);
+      }
+    }
+
+    // Prepare parts for the current message
+    const parts = [];
+
+    // Add text message if exists
+    if (message?.trim()) {
+      parts.push({ text: message });
+    }
+
+    // Process uploaded files
+    if (files && files.length > 0) {
+      for (const file of files) {
+        try {
+          // Read file as base64
+          const fileData = await fs.readFile(file.path);
+          const base64Data = fileData.toString('base64');
+
+          // Add file data (supports images, PDFs, etc.)
+          parts.push({
+            inlineData: {
+              mimeType: file.mimetype,
+              data: base64Data
+            }
+          });
+
+          // Clean up uploaded file
+          await fs.unlink(file.path);
+        } catch (fileError) {
+          console.error(`Error processing file ${file.originalname}:`, fileError);
+          // Continue with other files
+        }
+      }
+    }
+
+    // Build contents array with conversation history
+    const contents = [];
+
+    // Add conversation history
+    if (conversationHistory && conversationHistory.length > 0) {
+      conversationHistory.forEach(({ role, text }) => {
+        contents.push({
+          role,
+          parts: [{ text }]
+        });
+      });
+    }
+
+    // Add current message with files
+    contents.push({
+      role: 'user',
+      parts
+    });
+
+    // Generate response from Gemini
+    const response = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents
+    });
+
+    const resultText = response.text;
+
+    res.status(200).json({ 
+      result: resultText,
+      filesProcessed: files ? files.length : 0
+    });
+
+  } catch (error) {
+    console.error('Error in /api/chat-with-files:', error);
+    
+    // Clean up any uploaded files in case of error
+    if (req.files) {
+      for (const file of req.files) {
+        try {
+          await fs.unlink(file.path);
+        } catch (unlinkError) {
+          console.error('Error deleting file:', unlinkError);
+        }
+      }
+    }
+
+    res.status(500).json({ 
+      error: error.message || 'Internal Server Error',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Error handling middleware for multer
+app.use((error, req, res, next) => {
+  if (error instanceof multer.MulterError) {
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'File size too large. Maximum 10MB allowed.' });
+    }
+    return res.status(400).json({ error: error.message });
+  }
+  next(error);
+});
