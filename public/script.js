@@ -73,8 +73,9 @@ function createNewChat() {
   chatBox.innerHTML = `
     <div class="welcome-message">
       <i class="fas fa-comments"></i>
-      <h2>Selamat Datang di AI-ku</h2>
-      <p>Tanya apa saja! Kamu juga bisa kirim gambar dan file lho.</p>
+      <h2>Komdigi blokir ChatGPT ???</h2>
+      <p>Oke gpp, kita buat ChatGPT versi kita sendiri ya.</p>
+      <p>Tanya apa saja! Sini aku jawab, curhat juga boleh.</p>
     </div>
   `;
 }
@@ -92,8 +93,9 @@ function loadChat(chatId) {
     chatBox.innerHTML = `
       <div class="welcome-message">
         <i class="fas fa-comments"></i>
-        <h2>Selamat Datang di AI-ku</h2>
-        <p>Tanya apa saja! Kamu juga bisa kirim gambar dan file lho.</p>
+        <h2>Komdigi blokir ChatGPT ???</h2>
+        <p>Oke gpp, kita buat ChatGPT versi kita sendiri ya.</p>
+        <p>Tanya apa saja! Sini aku jawab, curhat juga boleh.</p>
       </div>
     `;
   } else {
