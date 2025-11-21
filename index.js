@@ -18,14 +18,12 @@ const ai = new GoogleGenAI({
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
-// Configure multer for file uploads
 const upload = multer({
   dest: 'uploads/',
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fileSize: 10 * 1024 * 1024,
   },
   fileFilter: (req, file, cb) => {
-    // Accept images and common file types
     const allowedMimes = [
       'image/jpeg',
       'image/jpg', 
@@ -77,7 +75,6 @@ app.post('/api/chat', async (req, res) => {
     }
 });
 
-// New endpoint with file upload support
 app.post('/api/chat-with-files', upload.array('files', 5), async (req, res) => {
   try {
     const { message, conversation } = req.body;
@@ -87,7 +84,6 @@ app.post('/api/chat-with-files', upload.array('files', 5), async (req, res) => {
       return res.status(400).json({ error: 'Message or files are required' });
     }
 
-    // Parse conversation history if exists
     let conversationHistory = [];
     if (conversation) {
       try {
@@ -99,23 +95,18 @@ app.post('/api/chat-with-files', upload.array('files', 5), async (req, res) => {
       }
     }
 
-    // Prepare parts for the current message
     const parts = [];
 
-    // Add text message if exists
     if (message?.trim()) {
       parts.push({ text: message });
     }
 
-    // Process uploaded files
     if (files && files.length > 0) {
       for (const file of files) {
         try {
-          // Read file as base64
           const fileData = await fs.readFile(file.path);
           const base64Data = fileData.toString('base64');
 
-          // Add file data (supports images, PDFs, etc.)
           parts.push({
             inlineData: {
               mimeType: file.mimetype,
@@ -123,19 +114,15 @@ app.post('/api/chat-with-files', upload.array('files', 5), async (req, res) => {
             }
           });
 
-          // Clean up uploaded file
           await fs.unlink(file.path);
         } catch (fileError) {
           console.error(`Error processing file ${file.originalname}:`, fileError);
-          // Continue with other files
         }
       }
     }
 
-    // Build contents array with conversation history
     const contents = [];
 
-    // Add conversation history
     if (conversationHistory && conversationHistory.length > 0) {
       conversationHistory.forEach(({ role, text }) => {
         contents.push({
@@ -145,13 +132,11 @@ app.post('/api/chat-with-files', upload.array('files', 5), async (req, res) => {
       });
     }
 
-    // Add current message with files
     contents.push({
       role: 'user',
       parts
     });
 
-    // Generate response from Gemini
     const response = await ai.models.generateContent({
       model: GEMINI_MODEL,
       contents
@@ -167,7 +152,6 @@ app.post('/api/chat-with-files', upload.array('files', 5), async (req, res) => {
   } catch (error) {
     console.error('Error in /api/chat-with-files:', error);
     
-    // Clean up any uploaded files in case of error
     if (req.files) {
       for (const file of req.files) {
         try {
@@ -185,7 +169,6 @@ app.post('/api/chat-with-files', upload.array('files', 5), async (req, res) => {
   }
 });
 
-// Error handling middleware for multer
 app.use((error, req, res, next) => {
   if (error instanceof multer.MulterError) {
     if (error.code === 'LIMIT_FILE_SIZE') {

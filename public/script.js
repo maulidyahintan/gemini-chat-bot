@@ -6,25 +6,342 @@ const attachBtn = document.getElementById('attach-btn');
 const attachmentPreview = document.getElementById('attachment-preview');
 const sendBtn = document.getElementById('send-btn');
 const fileCountBadge = document.getElementById('file-count');
+const newChatBtn = document.getElementById('new-chat-btn');
+const chatHistory = document.getElementById('chat-history');
+const menuToggle = document.getElementById('menu-toggle');
+const sidebar = document.getElementById('sidebar');
+const clearChatBtn = document.getElementById('clear-chat-btn');
+const deleteModal = document.getElementById('delete-modal');
+const clearModal = document.getElementById('clear-modal');
+const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+const cancelClearBtn = document.getElementById('cancel-clear-btn');
+const confirmClearBtn = document.getElementById('confirm-clear-btn');
+const themeToggle = document.getElementById('theme-toggle');
 
-// API endpoints
 const API_ENDPOINT = '/api/chat';
 const API_ENDPOINT_WITH_FILES = '/api/chat-with-files';
 
-// Conversation history
+let currentChatId = null;
+let chats = [];
 let conversationHistory = [];
 let attachedFiles = [];
+let chatToDelete = null;
 
-// Handle attach button click
+function loadTheme() {
+  const savedTheme = localStorage.getItem('theme');
+  if (savedTheme === 'light') {
+    document.body.classList.add('light-mode');
+  }
+}
+
+function toggleTheme() {
+  document.body.classList.toggle('light-mode');
+  const isLight = document.body.classList.contains('light-mode');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+}
+
+function initializeApp() {
+  loadTheme();
+  loadChatsFromStorage();
+  
+  if (chats.length === 0) {
+    createNewChat();
+  } else {
+    loadChat(chats[0].id);
+  }
+  
+  renderChatHistory();
+}
+
+function createNewChat() {
+  const chatId = 'chat_' + Date.now();
+  const newChat = {
+    id: chatId,
+    title: 'Chat Baru',
+    messages: [],
+    conversationHistory: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  
+  chats.unshift(newChat);
+  saveChatsToStorage();
+  loadChat(chatId);
+  renderChatHistory();
+  
+  chatBox.innerHTML = `
+    <div class="welcome-message">
+      <i class="fas fa-comments"></i>
+      <h2>Selamat Datang di AI-ku</h2>
+      <p>Tanya apa saja! Kamu juga bisa kirim gambar dan file lho.</p>
+    </div>
+  `;
+}
+
+function loadChat(chatId) {
+  const chat = chats.find(c => c.id === chatId);
+  if (!chat) return;
+  
+  currentChatId = chatId;
+  conversationHistory = [...chat.conversationHistory];
+  
+  chatBox.innerHTML = '';
+  
+  if (chat.messages.length === 0) {
+    chatBox.innerHTML = `
+      <div class="welcome-message">
+        <i class="fas fa-comments"></i>
+        <h2>Selamat Datang di AI-ku</h2>
+        <p>Tanya apa saja! Kamu juga bisa kirim gambar dan file lho.</p>
+      </div>
+    `;
+  } else {
+    chat.messages.forEach(msg => {
+      if (msg.role === 'user') {
+        appendUserMessage(msg.text, msg.files || [], false);
+      } else {
+        appendBotMessage(msg.text, false);
+      }
+    });
+  }
+  
+  renderChatHistory();
+  
+  if (window.innerWidth <= 768) {
+    closeSidebar();
+  }
+}
+
+function updateChatTitle(chatId, firstMessage) {
+  const chat = chats.find(c => c.id === chatId);
+  if (!chat) return;
+  
+  const title = firstMessage.length > 50 
+    ? firstMessage.substring(0, 50) + '...' 
+    : firstMessage;
+  
+  chat.title = title;
+  chat.updatedAt = new Date().toISOString();
+  saveChatsToStorage();
+  renderChatHistory();
+}
+
+function saveMessageToChat(role, text, files = []) {
+  const chat = chats.find(c => c.id === currentChatId);
+  if (!chat) return;
+  
+  const message = {
+    role,
+    text,
+    files: files.map(f => ({ name: f.name, size: f.size, type: f.type })),
+    timestamp: new Date().toISOString()
+  };
+  
+  chat.messages.push(message);
+  chat.conversationHistory = [...conversationHistory];
+  chat.updatedAt = new Date().toISOString();
+  
+  if (chat.messages.length === 1 && role === 'user' && chat.title === 'Chat Baru') {
+    updateChatTitle(currentChatId, text);
+  }
+  
+  saveChatsToStorage();
+}
+
+function deleteChat(chatId, event) {
+  event.stopPropagation();
+  
+  chatToDelete = chatId;
+  showModal(deleteModal);
+}
+
+function confirmDeleteChat() {
+  if (!chatToDelete) return;
+  
+  chats = chats.filter(c => c.id !== chatToDelete);
+  saveChatsToStorage();
+  
+  if (currentChatId === chatToDelete) {
+    if (chats.length > 0) {
+      loadChat(chats[0].id);
+    } else {
+      createNewChat();
+    }
+  }
+  
+  renderChatHistory();
+  hideModal(deleteModal);
+  showToast('Chat berhasil dihapus', 'success');
+  chatToDelete = null;
+}
+
+function clearCurrentChat() {
+  showModal(clearModal);
+}
+
+function confirmClearChat() {
+  const chat = chats.find(c => c.id === currentChatId);
+  if (!chat) return;
+  
+  chat.messages = [];
+  chat.conversationHistory = [];
+  chat.title = 'Chat Baru';
+  conversationHistory = [];
+  
+  saveChatsToStorage();
+  loadChat(currentChatId);
+  hideModal(clearModal);
+  showToast('Chat berhasil dibersihkan', 'success');
+}
+
+function renderChatHistory() {
+  if (chats.length === 0) {
+    chatHistory.innerHTML = '<p style="color: #64748b; font-size: 13px; text-align: center; padding: 20px;">Belum ada riwayat chat</p>';
+    return;
+  }
+  
+  chatHistory.innerHTML = chats.map(chat => {
+    const date = new Date(chat.updatedAt);
+    const timeStr = formatChatTime(date);
+    const isActive = chat.id === currentChatId;
+    
+    return `
+      <div class="history-item ${isActive ? 'active' : ''}" onclick="loadChat('${chat.id}')">
+        <div class="history-item-content">
+          <div class="history-item-title">${escapeHtml(chat.title)}</div>
+          <div class="history-item-time">${timeStr}</div>
+        </div>
+        <button class="history-item-delete" onclick="deleteChat('${chat.id}', event)" title="Hapus chat">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    `;
+  }).join('');
+}
+
+function formatChatTime(date) {
+  const now = new Date();
+  const diff = now - date;
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  
+  if (days === 0) {
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    if (hours === 0) {
+      const minutes = Math.floor(diff / (1000 * 60));
+      if (minutes === 0) return 'Baru saja';
+      return `${minutes} menit lalu`;
+    }
+    return `${hours} jam lalu`;
+  } else if (days === 1) {
+    return 'Kemarin';
+  } else if (days < 7) {
+    return `${days} hari lalu`;
+  } else {
+    return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+  }
+}
+
+function saveChatsToStorage() {
+  try {
+    localStorage.setItem('ai_chats', JSON.stringify(chats));
+  } catch (e) {
+    console.error('Failed to save chats:', e);
+  }
+}
+
+function loadChatsFromStorage() {
+  try {
+    const saved = localStorage.getItem('ai_chats');
+    if (saved) {
+      chats = JSON.parse(saved);
+    }
+  } catch (e) {
+    console.error('Failed to load chats:', e);
+    chats = [];
+  }
+}
+
+function showModal(modal) {
+  modal.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function hideModal(modal) {
+  modal.classList.remove('show');
+  document.body.style.overflow = '';
+}
+
+function toggleSidebar() {
+  sidebar.classList.toggle('active');
+  
+  let overlay = document.querySelector('.sidebar-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'sidebar-overlay';
+    overlay.onclick = closeSidebar;
+    document.body.appendChild(overlay);
+  }
+  overlay.classList.toggle('active');
+}
+
+function closeSidebar() {
+  sidebar.classList.remove('active');
+  const overlay = document.querySelector('.sidebar-overlay');
+  if (overlay) {
+    overlay.classList.remove('active');
+  }
+}
+
+newChatBtn.addEventListener('click', createNewChat);
+menuToggle.addEventListener('click', toggleSidebar);
+clearChatBtn.addEventListener('click', clearCurrentChat);
+themeToggle.addEventListener('click', toggleTheme);
+
+cancelDeleteBtn.addEventListener('click', () => {
+  hideModal(deleteModal);
+  chatToDelete = null;
+});
+
+confirmDeleteBtn.addEventListener('click', confirmDeleteChat);
+
+cancelClearBtn.addEventListener('click', () => {
+  hideModal(clearModal);
+});
+
+confirmClearBtn.addEventListener('click', confirmClearChat);
+
+deleteModal.querySelector('.modal-overlay').addEventListener('click', () => {
+  hideModal(deleteModal);
+  chatToDelete = null;
+});
+
+clearModal.querySelector('.modal-overlay').addEventListener('click', () => {
+  hideModal(clearModal);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (deleteModal.classList.contains('show')) {
+      hideModal(deleteModal);
+      chatToDelete = null;
+    }
+    if (clearModal.classList.contains('show')) {
+      hideModal(clearModal);
+    }
+  }
+});
+
+window.loadChat = loadChat;
+window.deleteChat = deleteChat;
+
 attachBtn.addEventListener('click', () => {
   fileInput.click();
 });
 
-// Handle file selection
 fileInput.addEventListener('change', (e) => {
   const files = Array.from(e.target.files);
   
-  // Limit to 5 files total
   const remainingSlots = 5 - attachedFiles.length;
   const filesToAdd = files.slice(0, remainingSlots);
   
@@ -33,7 +350,6 @@ fileInput.addEventListener('change', (e) => {
   }
   
   filesToAdd.forEach(file => {
-    // Check file size (10MB limit)
     if (file.size > 10 * 1024 * 1024) {
       alert(`File "${file.name}" terlalu besar. Maksimal 10MB per file.`);
       return;
@@ -49,7 +365,6 @@ fileInput.addEventListener('change', (e) => {
   fileInput.value = ''; // Reset input
 });
 
-// Update file count badge
 function updateFileCount() {
   if (attachedFiles.length > 0) {
     fileCountBadge.textContent = attachedFiles.length;
@@ -61,7 +376,6 @@ function updateFileCount() {
   }
 }
 
-// Update attachment preview
 function updateAttachmentPreview() {
   if (attachedFiles.length === 0) {
     attachmentPreview.classList.remove('active');
@@ -87,7 +401,6 @@ function updateAttachmentPreview() {
       const fileIcon = document.createElement('div');
       fileIcon.className = 'file-icon';
       
-      // Different icons for different file types
       let iconClass = 'fa-file';
       if (file.type === 'application/pdf') iconClass = 'fa-file-pdf';
       else if (file.type.includes('word')) iconClass = 'fa-file-word';
@@ -95,7 +408,6 @@ function updateAttachmentPreview() {
       
       fileIcon.innerHTML = `<i class="fas ${iconClass}"></i>`;
       
-      // Show filename
       const fileName = document.createElement('div');
       fileName.style.fontSize = '10px';
       fileName.style.marginTop = '5px';
@@ -118,9 +430,7 @@ function updateAttachmentPreview() {
   });
 }
 
-// Remove file from attachments
 function removeFile(index) {
-  // Revoke object URL to free memory
   const file = attachedFiles[index];
   if (file.type.startsWith('image/')) {
     const preview = document.querySelector(`img[alt="${file.name}"]`);
@@ -134,7 +444,6 @@ function removeFile(index) {
   updateFileCount();
 }
 
-// Handle form submission
 form.addEventListener('submit', async function (e) {
   e.preventDefault();
 
@@ -143,37 +452,29 @@ form.addEventListener('submit', async function (e) {
 
   if (!userMessage && !hasFiles) return;
 
-  // Disable input and button during processing
   input.disabled = true;
   sendBtn.disabled = true;
 
-  // Display user message with attachments
   appendUserMessage(userMessage, attachedFiles);
   
-  // Save files reference before clearing
   const filesToSend = [...attachedFiles];
 
-  // Clear input and attachments
   input.value = '';
   attachedFiles = [];
   updateAttachmentPreview();
   updateFileCount();
 
-  // Show typing indicator
   const typingId = showTypingIndicator();
 
   try {
     let response;
     let data;
 
-    // Choose endpoint based on whether files are attached
     if (hasFiles) {
-      // Use multipart/form-data for files
       const formData = new FormData();
       formData.append('message', userMessage);
       formData.append('conversation', JSON.stringify(conversationHistory));
       
-      // Append all files
       filesToSend.forEach(file => {
         formData.append('files', file);
       });
@@ -181,10 +482,8 @@ form.addEventListener('submit', async function (e) {
       response = await fetch(API_ENDPOINT_WITH_FILES, {
         method: 'POST',
         body: formData
-        // Don't set Content-Type header - browser will set it with boundary
       });
     } else {
-      // Use JSON for text-only messages
       conversationHistory.push({
         role: 'user',
         text: userMessage
@@ -201,7 +500,6 @@ form.addEventListener('submit', async function (e) {
       });
     }
 
-    // Remove typing indicator
     removeTypingIndicator(typingId);
 
     if (!response.ok) {
@@ -210,43 +508,31 @@ form.addEventListener('submit', async function (e) {
 
     data = await response.json();
 
-    // Check if we have a valid result
     if (data.result) {
-      // Add bot response to conversation history
-      conversationHistory.push({
-        role: 'user',
-        text: userMessage
-      });
       conversationHistory.push({
         role: 'model',
         text: data.result
       });
       
-      // Display bot message
       appendBotMessage(data.result);
     } else {
-      // No result received
       appendBotMessage('Maaf, tidak ada respons yang diterima.');
       console.error('No result in response:', data);
     }
 
   } catch (error) {
-    // Remove typing indicator on error
     removeTypingIndicator(typingId);
     
-    // Display error message
     appendBotMessage('Gagal mendapatkan respons dari server. Silakan coba lagi.');
     console.error('Error fetching response:', error);
   } finally {
-    // Re-enable input and button
     input.disabled = false;
     sendBtn.disabled = false;
     input.focus();
   }
 });
 
-// Append user message
-function appendUserMessage(text, files = []) {
+function appendUserMessage(text, files = [], saveToChat = true) {
   const wrapper = document.createElement('div');
   wrapper.className = 'message-wrapper user';
 
@@ -260,12 +546,13 @@ function appendUserMessage(text, files = []) {
     msg.appendChild(textNode);
   }
 
-  // Add file previews to message (UI only - backend integration needed for actual file processing)
   files.forEach(file => {
-    if (file.type.startsWith('image/')) {
+    if (file.type?.startsWith('image/')) {
       const img = document.createElement('img');
       img.className = 'message-image';
-      img.src = URL.createObjectURL(file);
+      if (file instanceof File) {
+        img.src = URL.createObjectURL(file);
+      }
       msg.appendChild(img);
     } else {
       const fileDiv = document.createElement('div');
@@ -281,7 +568,6 @@ function appendUserMessage(text, files = []) {
     }
   });
 
-  // Add timestamp
   const timestamp = document.createElement('div');
   timestamp.className = 'message-time';
   timestamp.textContent = getCurrentTime();
@@ -289,7 +575,6 @@ function appendUserMessage(text, files = []) {
 
   wrapper.appendChild(msg);
   
-  // Remove welcome message if exists
   const welcomeMsg = chatBox.querySelector('.welcome-message');
   if (welcomeMsg) {
     welcomeMsg.remove();
@@ -297,28 +582,28 @@ function appendUserMessage(text, files = []) {
   
   chatBox.appendChild(wrapper);
   chatBox.scrollTop = chatBox.scrollHeight;
+  
+  if (saveToChat) {
+    saveMessageToChat('user', text, files);
+  }
 }
 
-// Append bot message
-function appendBotMessage(text) {
+function appendBotMessage(text, saveToChat = true) {
   const wrapper = document.createElement('div');
   wrapper.className = 'message-wrapper bot';
 
   const msg = document.createElement('div');
   msg.className = 'message bot';
   
-  // Add copy button
   const copyBtn = document.createElement('button');
   copyBtn.className = 'copy-btn';
   copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copy';
   copyBtn.onclick = () => copyMessage(text, copyBtn);
   msg.appendChild(copyBtn);
   
-  // Format the text for better readability using marked.js
   const contentDiv = document.createElement('div');
   contentDiv.className = 'message-text';
   
-  // Configure marked for better rendering
   if (typeof marked !== 'undefined') {
     marked.setOptions({
       breaks: true,
@@ -327,7 +612,9 @@ function appendBotMessage(text) {
         if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
           try {
             return hljs.highlight(code, { language: lang }).value;
-          } catch (err) {}
+          } catch (err) {
+            console.error('Highlight error:', err);
+          }
         }
         return code;
       }
@@ -335,7 +622,6 @@ function appendBotMessage(text) {
     
     contentDiv.innerHTML = marked.parse(text);
     
-    // Add copy buttons to code blocks
     contentDiv.querySelectorAll('pre code').forEach((block, index) => {
       const pre = block.parentElement;
       const wrapper = document.createElement('div');
@@ -349,19 +635,16 @@ function appendBotMessage(text) {
       copyCodeBtn.onclick = () => copyCode(block.textContent, copyCodeBtn);
       wrapper.appendChild(copyCodeBtn);
       
-      // Apply syntax highlighting
       if (typeof hljs !== 'undefined') {
         hljs.highlightElement(block);
       }
     });
   } else {
-    // Fallback if marked is not loaded
     contentDiv.innerHTML = formatBotMessage(text);
   }
   
   msg.appendChild(contentDiv);
 
-  // Add timestamp
   const timestamp = document.createElement('div');
   timestamp.className = 'message-time';
   timestamp.textContent = getCurrentTime();
@@ -370,52 +653,44 @@ function appendBotMessage(text) {
   wrapper.appendChild(msg);
   chatBox.appendChild(wrapper);
   chatBox.scrollTop = chatBox.scrollHeight;
+  
+  if (saveToChat) {
+    saveMessageToChat('model', text);
+  }
 }
 
-// Format bot message for better readability
 function formatBotMessage(text) {
   if (!text) return '';
   
-  // Convert markdown-style formatting to HTML
   let formatted = text;
   
-  // Bold text: **text** or __text__
   formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   formatted = formatted.replace(/__(.+?)__/g, '<strong>$1</strong>');
   
-  // Italic text: *text* or _text_
   formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
   formatted = formatted.replace(/_(.+?)_/g, '<em>$1</em>');
   
-  // Code blocks: ```code```
   formatted = formatted.replace(/```(.+?)```/gs, '<pre><code>$1</code></pre>');
   
-  // Inline code: `code`
   formatted = formatted.replace(/`(.+?)`/g, '<code>$1</code>');
   
-  // Headers: ## Header
   formatted = formatted.replace(/^### (.+)$/gm, '<h4>$1</h4>');
   formatted = formatted.replace(/^## (.+)$/gm, '<h3>$1</h3>');
   formatted = formatted.replace(/^# (.+)$/gm, '<h3>$1</h3>');
   
-  // Line breaks for numbered lists
   formatted = formatted.replace(/^(\d+\.)/gm, '<br>$1');
   
-  // Bullet points: * item or - item
   formatted = formatted.replace(/^\* (.+)$/gm, '<div class="bullet-item">• $1</div>');
   formatted = formatted.replace(/^- (.+)$/gm, '<div class="bullet-item">• $1</div>');
   
-  // Preserve line breaks
   formatted = formatted.replace(/\n\n/g, '<br><br>');
   formatted = formatted.replace(/\n/g, '<br>');
   
-  // Clean up extra breaks at the start
   formatted = formatted.replace(/^(<br>)+/, '');
   
   return formatted;
 }
 
-// Show typing indicator
 function showTypingIndicator() {
   const wrapper = document.createElement('div');
   wrapper.className = 'message-wrapper bot';
@@ -434,7 +709,6 @@ function showTypingIndicator() {
   return id;
 }
 
-// Remove typing indicator
 function removeTypingIndicator(id) {
   const indicator = document.getElementById(id);
   if (indicator) {
@@ -442,7 +716,6 @@ function removeTypingIndicator(id) {
   }
 }
 
-// Format file size
 function formatFileSize(bytes) {
   if (bytes === 0) return '0 Bytes';
   const k = 1024;
@@ -451,7 +724,6 @@ function formatFileSize(bytes) {
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
 
-// Get current time in HH:MM format
 function getCurrentTime() {
   const now = new Date();
   const hours = String(now.getHours()).padStart(2, '0');
@@ -459,7 +731,6 @@ function getCurrentTime() {
   return `${hours}:${minutes}`;
 }
 
-// Escape HTML to prevent XSS
 function escapeHtml(text) {
   const map = {
     '&': '&amp;',
@@ -471,7 +742,6 @@ function escapeHtml(text) {
   return text.replace(/[&<>"']/g, m => map[m]);
 }
 
-// Allow Enter to send, Shift+Enter for new line
 input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
@@ -479,7 +749,6 @@ input.addEventListener('keydown', (e) => {
   }
 });
 
-// Copy message to clipboard
 function copyMessage(text, button) {
   navigator.clipboard.writeText(text).then(() => {
     const originalHTML = button.innerHTML;
@@ -498,7 +767,6 @@ function copyMessage(text, button) {
   });
 }
 
-// Copy code block to clipboard
 function copyCode(code, button) {
   navigator.clipboard.writeText(code).then(() => {
     const originalHTML = button.innerHTML;
@@ -517,7 +785,6 @@ function copyCode(code, button) {
   });
 }
 
-// Show toast notification
 function showToast(message, type = 'success') {
   const toast = document.getElementById('toast');
   const toastMessage = document.getElementById('toast-message');
@@ -537,3 +804,4 @@ function showToast(message, type = 'success') {
   }, 3000);
 }
 
+initializeApp();
