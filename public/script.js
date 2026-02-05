@@ -606,6 +606,23 @@ function appendBotMessage(text, saveToChat = true) {
   const contentDiv = document.createElement('div');
   contentDiv.className = 'message-text';
   
+  // Check if response contains spreadsheet data
+  let spreadsheetData = null;
+  let cleanedText = text;
+  
+  if (text.includes('SPREADSHEET_DATA:')) {
+    try {
+      const match = text.match(/SPREADSHEET_DATA:\s*(\[[\s\S]*?\])/);
+      if (match && match[1]) {
+        spreadsheetData = JSON.parse(match[1]);
+        // Remove the spreadsheet data from the text
+        cleanedText = text.replace(/SPREADSHEET_DATA:\s*\[[\s\S]*?\]/, '').trim();
+      }
+    } catch (e) {
+      console.error('Failed to parse spreadsheet data:', e);
+    }
+  }
+  
   if (typeof marked !== 'undefined') {
     marked.setOptions({
       breaks: true,
@@ -622,7 +639,7 @@ function appendBotMessage(text, saveToChat = true) {
       }
     });
     
-    contentDiv.innerHTML = marked.parse(text);
+    contentDiv.innerHTML = marked.parse(cleanedText);
     
     contentDiv.querySelectorAll('pre code').forEach((block, index) => {
       const pre = block.parentElement;
@@ -642,7 +659,16 @@ function appendBotMessage(text, saveToChat = true) {
       }
     });
   } else {
-    contentDiv.innerHTML = formatBotMessage(text);
+    contentDiv.innerHTML = formatBotMessage(cleanedText);
+  }
+  
+  // Add spreadsheet download button if data is available
+  if (spreadsheetData && Array.isArray(spreadsheetData) && spreadsheetData.length > 0) {
+    const downloadBtn = document.createElement('button');
+    downloadBtn.className = 'download-spreadsheet-btn';
+    downloadBtn.innerHTML = '<i class="fas fa-download"></i> Download Spreadsheet';
+    downloadBtn.onclick = () => downloadSpreadsheet(spreadsheetData);
+    contentDiv.appendChild(downloadBtn);
   }
   
   msg.appendChild(contentDiv);
@@ -804,6 +830,45 @@ function showToast(message, type = 'success') {
   setTimeout(() => {
     toast.classList.remove('show');
   }, 3000);
+}
+
+async function downloadSpreadsheet(data) {
+  try {
+    const response = await fetch('/api/generate-spreadsheet', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        data: data,
+        filename: 'spreadsheet_' + Date.now()
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to generate spreadsheet');
+    }
+
+    // Get the blob from the response
+    const blob = await response.blob();
+    
+    // Create a download link
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'spreadsheet_' + Date.now() + '.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    
+    // Clean up
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+    showToast('Spreadsheet berhasil diunduh!', 'success');
+  } catch (error) {
+    console.error('Error downloading spreadsheet:', error);
+    showToast('Gagal mengunduh spreadsheet', 'error');
+  }
 }
 
 initializeApp();

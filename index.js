@@ -6,6 +6,7 @@ import cors from 'cors';
 import express from 'express';
 import multer from 'multer';
 import fs from 'fs/promises';
+import * as XLSX from 'xlsx';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -64,6 +65,22 @@ app.post('/api/chat', async (req, res) => {
             parts: [{ text }],
         }));
 
+        // Add system instruction for spreadsheet generation
+        const systemInstruction = `Ketika pengguna meminta untuk membuat spreadsheet, tabel, atau data terstruktur, berikan respons dalam format JSON yang diawali dengan "SPREADSHEET_DATA:" diikuti dengan array of objects. Contoh:
+
+SPREADSHEET_DATA:
+[
+  {"Nama": "John Doe", "Umur": 30, "Kota": "Jakarta"},
+  {"Nama": "Jane Smith", "Umur": 25, "Kota": "Bandung"}
+]
+
+Setelah JSON, berikan penjelasan singkat tentang spreadsheet yang dibuat.`;
+
+        // Prepend system instruction to the first message if available
+        if (contents.length > 0 && contents[0].role === 'user') {
+          contents[0].parts[0].text = systemInstruction + '\n\n' + contents[0].parts[0].text;
+        }
+
         const response = await ai.models.generateContent({
             model: GEMINI_MODEL,
             contents
@@ -97,8 +114,19 @@ app.post('/api/chat-with-files', upload.array('files', 5), async (req, res) => {
 
     const parts = [];
 
+    // Add system instruction for spreadsheet generation
+    const systemInstruction = `Ketika pengguna meminta untuk membuat spreadsheet, tabel, atau data terstruktur, berikan respons dalam format JSON yang diawali dengan "SPREADSHEET_DATA:" diikuti dengan array of objects. Contoh:
+
+SPREADSHEET_DATA:
+[
+  {"Nama": "John Doe", "Umur": 30, "Kota": "Jakarta"},
+  {"Nama": "Jane Smith", "Umur": 25, "Kota": "Bandung"}
+]
+
+Setelah JSON, berikan penjelasan singkat tentang spreadsheet yang dibuat.`;
+
     if (message?.trim()) {
-      parts.push({ text: message });
+      parts.push({ text: systemInstruction + '\n\n' + message });
     }
 
     if (files && files.length > 0) {
@@ -166,6 +194,37 @@ app.post('/api/chat-with-files', upload.array('files', 5), async (req, res) => {
       error: error.message || 'Internal Server Error',
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
+  }
+});
+
+app.post('/api/generate-spreadsheet', async (req, res) => {
+  try {
+    const { data, filename } = req.body;
+
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      return res.status(400).json({ error: 'Invalid data format. Expected an array of objects.' });
+    }
+
+    // Create a new workbook and worksheet
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(data);
+
+    // Add the worksheet to the workbook
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+
+    // Generate buffer
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    // Set headers for file download
+    const safeFilename = (filename || 'spreadsheet').replace(/[^a-zA-Z0-9_-]/g, '_');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}.xlsx"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+    // Send the file
+    res.send(buffer);
+  } catch (error) {
+    console.error('Error generating spreadsheet:', error);
+    res.status(500).json({ error: 'Failed to generate spreadsheet', details: error.message });
   }
 });
 
