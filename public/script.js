@@ -606,6 +606,44 @@ function appendBotMessage(text, saveToChat = true) {
   const contentDiv = document.createElement('div');
   contentDiv.className = 'message-text';
   
+  // Check if response contains spreadsheet data
+  let spreadsheetData = null;
+  let cleanedText = text;
+  let matchedContent = null;
+  
+  if (text.includes('SPREADSHEET_DATA:')) {
+    try {
+      // Find the start of JSON array
+      const startIndex = text.indexOf('SPREADSHEET_DATA:');
+      const jsonStartIndex = text.indexOf('[', startIndex);
+      
+      if (jsonStartIndex !== -1) {
+        // Use a more robust approach to extract JSON
+        let bracketCount = 0;
+        let jsonEndIndex = jsonStartIndex;
+        
+        for (let i = jsonStartIndex; i < text.length; i++) {
+          if (text[i] === '[') bracketCount++;
+          if (text[i] === ']') bracketCount--;
+          
+          if (bracketCount === 0) {
+            jsonEndIndex = i + 1;
+            break;
+          }
+        }
+        
+        const jsonStr = text.substring(jsonStartIndex, jsonEndIndex);
+        spreadsheetData = JSON.parse(jsonStr);
+        
+        // Remove the entire SPREADSHEET_DATA section including the marker
+        matchedContent = text.substring(startIndex, jsonEndIndex);
+        cleanedText = text.replace(matchedContent, '').trim();
+      }
+    } catch (e) {
+      console.error('Failed to parse spreadsheet data:', e);
+    }
+  }
+  
   if (typeof marked !== 'undefined') {
     marked.setOptions({
       breaks: true,
@@ -622,7 +660,7 @@ function appendBotMessage(text, saveToChat = true) {
       }
     });
     
-    contentDiv.innerHTML = marked.parse(text);
+    contentDiv.innerHTML = marked.parse(cleanedText);
     
     contentDiv.querySelectorAll('pre code').forEach((block, index) => {
       const pre = block.parentElement;
@@ -642,7 +680,16 @@ function appendBotMessage(text, saveToChat = true) {
       }
     });
   } else {
-    contentDiv.innerHTML = formatBotMessage(text);
+    contentDiv.innerHTML = formatBotMessage(cleanedText);
+  }
+  
+  // Add spreadsheet download button if data is available
+  if (spreadsheetData && Array.isArray(spreadsheetData) && spreadsheetData.length > 0) {
+    const downloadBtn = document.createElement('button');
+    downloadBtn.className = 'download-spreadsheet-btn';
+    downloadBtn.innerHTML = '<i class="fas fa-download"></i> Download Spreadsheet';
+    downloadBtn.onclick = () => downloadSpreadsheet(spreadsheetData);
+    contentDiv.appendChild(downloadBtn);
   }
   
   msg.appendChild(contentDiv);
@@ -804,6 +851,48 @@ function showToast(message, type = 'success') {
   setTimeout(() => {
     toast.classList.remove('show');
   }, 3000);
+}
+
+async function downloadSpreadsheet(data) {
+  try {
+    // Generate filename once for consistency
+    const filename = 'spreadsheet_' + Date.now();
+    
+    const response = await fetch('/api/generate-spreadsheet', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        data: data,
+        filename: filename
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to generate spreadsheet');
+    }
+
+    // Get the blob from the response
+    const blob = await response.blob();
+    
+    // Create a download link
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename + '.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    
+    // Clean up
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+    showToast('Spreadsheet berhasil diunduh!', 'success');
+  } catch (error) {
+    console.error('Error downloading spreadsheet:', error);
+    showToast('Gagal mengunduh spreadsheet', 'error');
+  }
 }
 
 initializeApp();
