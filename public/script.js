@@ -609,14 +609,35 @@ function appendBotMessage(text, saveToChat = true) {
   // Check if response contains spreadsheet data
   let spreadsheetData = null;
   let cleanedText = text;
+  let matchedContent = null;
   
   if (text.includes('SPREADSHEET_DATA:')) {
     try {
-      const match = text.match(/SPREADSHEET_DATA:\s*(\[[\s\S]*?\])/);
-      if (match && match[1]) {
-        spreadsheetData = JSON.parse(match[1]);
-        // Remove the spreadsheet data from the text
-        cleanedText = text.replace(/SPREADSHEET_DATA:\s*\[[\s\S]*?\]/, '').trim();
+      // Find the start of JSON array
+      const startIndex = text.indexOf('SPREADSHEET_DATA:');
+      const jsonStartIndex = text.indexOf('[', startIndex);
+      
+      if (jsonStartIndex !== -1) {
+        // Use a more robust approach to extract JSON
+        let bracketCount = 0;
+        let jsonEndIndex = jsonStartIndex;
+        
+        for (let i = jsonStartIndex; i < text.length; i++) {
+          if (text[i] === '[') bracketCount++;
+          if (text[i] === ']') bracketCount--;
+          
+          if (bracketCount === 0) {
+            jsonEndIndex = i + 1;
+            break;
+          }
+        }
+        
+        const jsonStr = text.substring(jsonStartIndex, jsonEndIndex);
+        spreadsheetData = JSON.parse(jsonStr);
+        
+        // Remove the entire SPREADSHEET_DATA section including the marker
+        matchedContent = text.substring(startIndex, jsonEndIndex);
+        cleanedText = text.replace(matchedContent, '').trim();
       }
     } catch (e) {
       console.error('Failed to parse spreadsheet data:', e);
@@ -834,6 +855,9 @@ function showToast(message, type = 'success') {
 
 async function downloadSpreadsheet(data) {
   try {
+    // Generate filename once for consistency
+    const filename = 'spreadsheet_' + Date.now();
+    
     const response = await fetch('/api/generate-spreadsheet', {
       method: 'POST',
       headers: {
@@ -841,7 +865,7 @@ async function downloadSpreadsheet(data) {
       },
       body: JSON.stringify({
         data: data,
-        filename: 'spreadsheet_' + Date.now()
+        filename: filename
       })
     });
 
@@ -856,7 +880,7 @@ async function downloadSpreadsheet(data) {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'spreadsheet_' + Date.now() + '.xlsx';
+    a.download = filename + '.xlsx';
     document.body.appendChild(a);
     a.click();
     

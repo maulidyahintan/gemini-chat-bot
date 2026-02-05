@@ -19,6 +19,16 @@ const ai = new GoogleGenAI({
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
+const SPREADSHEET_SYSTEM_INSTRUCTION = `Ketika pengguna meminta untuk membuat spreadsheet, tabel, atau data terstruktur, berikan respons dalam format JSON yang diawali dengan "SPREADSHEET_DATA:" diikuti dengan array of objects. Contoh:
+
+SPREADSHEET_DATA:
+[
+  {"Nama": "John Doe", "Umur": 30, "Kota": "Jakarta"},
+  {"Nama": "Jane Smith", "Umur": 25, "Kota": "Bandung"}
+]
+
+Setelah JSON, berikan penjelasan singkat tentang spreadsheet yang dibuat.`;
+
 const upload = multer({
   dest: 'uploads/',
   limits: {
@@ -65,20 +75,9 @@ app.post('/api/chat', async (req, res) => {
             parts: [{ text }],
         }));
 
-        // Add system instruction for spreadsheet generation
-        const systemInstruction = `Ketika pengguna meminta untuk membuat spreadsheet, tabel, atau data terstruktur, berikan respons dalam format JSON yang diawali dengan "SPREADSHEET_DATA:" diikuti dengan array of objects. Contoh:
-
-SPREADSHEET_DATA:
-[
-  {"Nama": "John Doe", "Umur": 30, "Kota": "Jakarta"},
-  {"Nama": "Jane Smith", "Umur": 25, "Kota": "Bandung"}
-]
-
-Setelah JSON, berikan penjelasan singkat tentang spreadsheet yang dibuat.`;
-
         // Prepend system instruction to the first message if available
         if (contents.length > 0 && contents[0].role === 'user') {
-          contents[0].parts[0].text = systemInstruction + '\n\n' + contents[0].parts[0].text;
+          contents[0].parts[0].text = SPREADSHEET_SYSTEM_INSTRUCTION + '\n\n' + contents[0].parts[0].text;
         }
 
         const response = await ai.models.generateContent({
@@ -114,19 +113,8 @@ app.post('/api/chat-with-files', upload.array('files', 5), async (req, res) => {
 
     const parts = [];
 
-    // Add system instruction for spreadsheet generation
-    const systemInstruction = `Ketika pengguna meminta untuk membuat spreadsheet, tabel, atau data terstruktur, berikan respons dalam format JSON yang diawali dengan "SPREADSHEET_DATA:" diikuti dengan array of objects. Contoh:
-
-SPREADSHEET_DATA:
-[
-  {"Nama": "John Doe", "Umur": 30, "Kota": "Jakarta"},
-  {"Nama": "Jane Smith", "Umur": 25, "Kota": "Bandung"}
-]
-
-Setelah JSON, berikan penjelasan singkat tentang spreadsheet yang dibuat.`;
-
     if (message?.trim()) {
-      parts.push({ text: systemInstruction + '\n\n' + message });
+      parts.push({ text: SPREADSHEET_SYSTEM_INSTRUCTION + '\n\n' + message });
     }
 
     if (files && files.length > 0) {
