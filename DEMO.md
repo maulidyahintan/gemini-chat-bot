@@ -147,16 +147,17 @@ File yang dihasilkan:
 
 ## Keamanan
 
-- ✅ CDN scripts menggunakan integrity check (SRI)
-- ✅ No vulnerabilities found in CodeQL scan
+- ✅ No vulnerabilities found (npm audit: 0 vulnerabilities)
+- ✅ CodeQL scan passed with 0 alerts
 - ✅ Server-side validation untuk data
-- ✅ Safe file generation menggunakan library terpercaya (xlsx)
+- ✅ Secure ExcelJS library v4.4.0 (actively maintained)
+- ✅ Safe file generation using trusted library
 
 ## Teknologi
 
 - **Frontend**: Vanilla JavaScript, Fetch API
 - **Backend**: Node.js, Express
-- **Library**: SheetJS (xlsx) v0.18.5
+- **Library**: ExcelJS v4.4.0 (secure, actively maintained)
 - **AI**: Google Gemini 2.5 Flash
 
 ---

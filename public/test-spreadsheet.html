@@ -29,6 +29,13 @@
       margin-bottom: 20px;
       border-left: 4px solid #2196f3;
     }
+    .warning {
+      background: #fff3cd;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+      border-left: 4px solid #ffc107;
+    }
     .test-section {
       margin: 20px 0;
     }
@@ -65,7 +72,7 @@
       font-weight: bold;
     }
   </style>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfG2ch39Pkl/5L+bKCd5ua9DdqPXD2lPqULdQ6qpQ8wy8w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 </head>
 <body>
   <div class="container">
@@ -73,7 +80,12 @@
     
     <div class="info">
       <strong>ℹ️ Informasi:</strong><br>
-      Halaman ini menguji kemampuan browser untuk menghasilkan dan mengunduh file Excel menggunakan library xlsx.
+      Halaman ini menguji kemampuan browser untuk menghasilkan dan mengunduh file Excel menggunakan library ExcelJS (secure, actively maintained).
+    </div>
+
+    <div class="warning">
+      <strong>⚠️ Catatan:</strong><br>
+      Aplikasi utama menggunakan ExcelJS v4.4.0 di backend untuk keamanan maksimal. Test page ini menggunakan CDN untuk demo purposes only.
     </div>
 
     <div class="test-section">
@@ -96,17 +108,46 @@
   </div>
 
   <script>
-    function downloadExcel(data, filename) {
+    async function downloadExcel(data, filename) {
       try {
         // Create workbook
-        const workbook = XLSX.utils.book_new();
-        const worksheet = XLSX.utils.json_to_sheet(data);
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Sheet1');
         
-        // Add worksheet to workbook
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+        // Get column headers from first object
+        const headers = Object.keys(data[0]);
+        worksheet.columns = headers.map(header => ({
+          header: header,
+          key: header,
+          width: 15
+        }));
         
-        // Generate and download
-        XLSX.writeFile(workbook, filename + '.xlsx');
+        // Add data rows
+        data.forEach(row => {
+          worksheet.addRow(row);
+        });
+        
+        // Style the header row
+        worksheet.getRow(1).font = { bold: true };
+        worksheet.getRow(1).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE0E0E0' }
+        };
+        
+        // Generate buffer
+        const buffer = await workbook.xlsx.writeBuffer();
+        
+        // Create blob and download
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename + '.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
         
         return { success: true, message: 'File berhasil diunduh!' };
       } catch (error) {
@@ -127,7 +168,7 @@
       `;
     }
 
-    function testMahasiswa() {
+    async function testMahasiswa() {
       const data = [
         { "Nama": "Ahmad Pratama", "NIM": "A001", "Jurusan": "Teknik Informatika" },
         { "Nama": "Siti Nurhaliza", "NIM": "A002", "Jurusan": "Sistem Informasi" },
@@ -136,11 +177,11 @@
         { "Nama": "Eko Prasetyo", "NIM": "A005", "Jurusan": "Akuntansi" }
       ];
       
-      const result = downloadExcel(data, 'daftar_mahasiswa');
+      const result = await downloadExcel(data, 'daftar_mahasiswa');
       showResult('result1', result.success, result.message, data);
     }
 
-    function testPenjualan() {
+    async function testPenjualan() {
       const data = [
         { "Bulan": "Januari", "Produk": "Laptop", "Jumlah Terjual": 15 },
         { "Bulan": "Januari", "Produk": "Mouse", "Jumlah Terjual": 45 },
@@ -149,11 +190,11 @@
         { "Bulan": "Maret", "Produk": "Laptop", "Jumlah Terjual": 18 }
       ];
       
-      const result = downloadExcel(data, 'data_penjualan');
+      const result = await downloadExcel(data, 'data_penjualan');
       showResult('result2', result.success, result.message, data);
     }
 
-    function testInventaris() {
+    async function testInventaris() {
       const data = [
         { "Kode": "BRG001", "Nama Barang": "Kursi Kantor", "Stok": 25, "Harga": 750000 },
         { "Kode": "BRG002", "Nama Barang": "Meja Kerja", "Stok": 15, "Harga": 1200000 },
@@ -162,7 +203,7 @@
         { "Kode": "BRG005", "Nama Barang": "Proyektor", "Stok": 5, "Harga": 5000000 }
       ];
       
-      const result = downloadExcel(data, 'inventaris_barang');
+      const result = await downloadExcel(data, 'inventaris_barang');
       showResult('result3', result.success, result.message, data);
     }
   </script>

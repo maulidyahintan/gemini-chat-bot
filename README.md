@@ -68,7 +68,7 @@ node index.js
 - **cors** - Cross-Origin Resource Sharing
 - **multer** - File upload middleware
 - **dotenv** - Environment variables
-- **xlsx** - Excel file generation (untuk fitur spreadsheet)
+- **exceljs** - Excel file generation (secure, actively maintained)
 
 ## 🧪 Testing
 
@@ -178,7 +178,7 @@ Maulidyah Intan
 ## 🙏 Acknowledgments
 
 - Google Gemini AI
-- SheetJS (xlsx library)
+- ExcelJS library (secure alternative to SheetJS)
 - Font Awesome untuk icons
 - Marked.js untuk markdown rendering
 - Highlight.js untuk syntax highlighting

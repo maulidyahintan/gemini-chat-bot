@@ -6,7 +6,7 @@ import cors from 'cors';
 import express from 'express';
 import multer from 'multer';
 import fs from 'fs/promises';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -194,14 +194,32 @@ app.post('/api/generate-spreadsheet', async (req, res) => {
     }
 
     // Create a new workbook and worksheet
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Sheet1');
 
-    // Add the worksheet to the workbook
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+    // Get column headers from first object
+    const headers = Object.keys(data[0]);
+    worksheet.columns = headers.map(header => ({
+      header: header,
+      key: header,
+      width: 15
+    }));
+
+    // Add data rows
+    data.forEach(row => {
+      worksheet.addRow(row);
+    });
+
+    // Style the header row
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
 
     // Generate buffer
-    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const buffer = await workbook.xlsx.writeBuffer();
 
     // Set headers for file download
     const safeFilename = (filename || 'spreadsheet').replace(/[^a-zA-Z0-9_-]/g, '_');

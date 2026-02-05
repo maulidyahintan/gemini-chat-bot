@@ -73,7 +73,7 @@ Spreadsheet yang dihasilkan:
 
 ## Teknologi
 - **Backend**: Node.js + Express
-- **Library**: xlsx (SheetJS)
+- **Library**: ExcelJS (actively maintained, secure)
 - **Format Output**: Excel 2007+ (.xlsx)
 
 ## Catatan

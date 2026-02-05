@@ -12,10 +12,11 @@
 ### 📝 Detail Perubahan
 
 #### Backend (`index.js`)
-1. **Dependency Baru**: Menambahkan `xlsx` library untuk generasi Excel
+1. **Dependency**: Using `exceljs` v4.4.0 (secure, actively maintained) instead of xlsx
 2. **Endpoint Baru**: `/api/generate-spreadsheet` untuk generate dan serve Excel files
 3. **System Instruction**: Menambahkan instruksi ke Gemini untuk format spreadsheet data
 4. **Konstanta**: `SPREADSHEET_SYSTEM_INSTRUCTION` untuk consistency
+5. **Enhanced Styling**: Headers are now bold with gray background for better readability
 
 #### Frontend (`public/script.js`)
 1. **Detection Logic**: Deteksi otomatis `SPREADSHEET_DATA:` di response
@@ -49,8 +50,8 @@
 
 ### 🚀 Dependencies
 
-#### Baru
-- `xlsx@^0.18.5` - Excel file generation
+#### Current (Secure)
+- `exceljs@^4.4.0` - Excel file generation (secure, actively maintained, 0 vulnerabilities)
 
 #### Existing
 - `@google/genai@^1.30.0`
@@ -78,8 +79,9 @@
 
 ### 🔐 Security
 
-- ✅ No security vulnerabilities (CodeQL scan)
-- ✅ SRI integrity checks on CDN scripts
+- ✅ No security vulnerabilities (npm audit: 0 vulnerabilities)
+- ✅ No security vulnerabilities (CodeQL scan: 0 alerts)
+- ✅ ExcelJS v4.4.0 - actively maintained, secure library
 - ✅ Input validation di backend
 - ✅ Safe file generation
 
