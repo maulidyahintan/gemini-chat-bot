@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Spreadsheet Feature</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+    .info {
+      background: #e3f2fd;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+      border-left: 4px solid #2196f3;
+    }
+    .test-section {
+      margin: 20px 0;
+    }
+    button {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 5px;
+      transition: all 0.2s ease;
+    }
+    button:hover {
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+    }
+    .result {
+      background: #f9f9f9;
+      padding: 15px;
+      border-radius: 5px;
+      margin-top: 15px;
+      font-family: monospace;
+      white-space: pre-wrap;
+    }
+    .success {
+      color: #10b981;
+      font-weight: bold;
+    }
+    .error {
+      color: #ef4444;
+      font-weight: bold;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Test Fitur Spreadsheet</h1>
+    
+    <div class="info">
+      <strong>ℹ️ Informasi:</strong><br>
+      Halaman ini menguji kemampuan browser untuk menghasilkan dan mengunduh file Excel menggunakan library xlsx.
+    </div>
+
+    <div class="test-section">
+      <h3>Test 1: Generate Spreadsheet Mahasiswa</h3>
+      <button onclick="testMahasiswa()">📊 Generate & Download</button>
+      <div id="result1" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="test-section">
+      <h3>Test 2: Generate Spreadsheet Penjualan</h3>
+      <button onclick="testPenjualan()">📊 Generate & Download</button>
+      <div id="result2" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="test-section">
+      <h3>Test 3: Generate Spreadsheet Inventaris</h3>
+      <button onclick="testInventaris()">📊 Generate & Download</button>
+      <div id="result3" class="result" style="display:none;"></div>
+    </div>
+  </div>
+
+  <script>
+    function downloadExcel(data, filename) {
+      try {
+        // Create workbook
+        const workbook = XLSX.utils.book_new();
+        const worksheet = XLSX.utils.json_to_sheet(data);
+        
+        // Add worksheet to workbook
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+        
+        // Generate and download
+        XLSX.writeFile(workbook, filename + '.xlsx');
+        
+        return { success: true, message: 'File berhasil diunduh!' };
+      } catch (error) {
+        return { success: false, message: 'Error: ' + error.message };
+      }
+    }
+
+    function showResult(elementId, success, message, data) {
+      const element = document.getElementById(elementId);
+      element.style.display = 'block';
+      
+      const status = success ? '✓' : '✗';
+      const className = success ? 'success' : 'error';
+      
+      element.innerHTML = `
+        <span class="${className}">${status} ${message}</span>
+        ${data ? '\n\nData yang dihasilkan:\n' + JSON.stringify(data, null, 2) : ''}
+      `;
+    }
+
+    function testMahasiswa() {
+      const data = [
+        { "Nama": "Ahmad Pratama", "NIM": "A001", "Jurusan": "Teknik Informatika" },
+        { "Nama": "Siti Nurhaliza", "NIM": "A002", "Jurusan": "Sistem Informasi" },
+        { "Nama": "Budi Santoso", "NIM": "A003", "Jurusan": "Teknik Elektro" },
+        { "Nama": "Dewi Lestari", "NIM": "A004", "Jurusan": "Manajemen" },
+        { "Nama": "Eko Prasetyo", "NIM": "A005", "Jurusan": "Akuntansi" }
+      ];
+      
+      const result = downloadExcel(data, 'daftar_mahasiswa');
+      showResult('result1', result.success, result.message, data);
+    }
+
+    function testPenjualan() {
+      const data = [
+        { "Bulan": "Januari", "Produk": "Laptop", "Jumlah Terjual": 15 },
+        { "Bulan": "Januari", "Produk": "Mouse", "Jumlah Terjual": 45 },
+        { "Bulan": "Februari", "Produk": "Laptop", "Jumlah Terjual": 20 },
+        { "Bulan": "Februari", "Produk": "Mouse", "Jumlah Terjual": 52 },
+        { "Bulan": "Maret", "Produk": "Laptop", "Jumlah Terjual": 18 }
+      ];
+      
+      const result = downloadExcel(data, 'data_penjualan');
+      showResult('result2', result.success, result.message, data);
+    }
+
+    function testInventaris() {
+      const data = [
+        { "Kode": "BRG001", "Nama Barang": "Kursi Kantor", "Stok": 25, "Harga": 750000 },
+        { "Kode": "BRG002", "Nama Barang": "Meja Kerja", "Stok": 15, "Harga": 1200000 },
+        { "Kode": "BRG003", "Nama Barang": "Lemari Arsip", "Stok": 10, "Harga": 2500000 },
+        { "Kode": "BRG004", "Nama Barang": "Printer", "Stok": 8, "Harga": 3500000 },
+        { "Kode": "BRG005", "Nama Barang": "Proyektor", "Stok": 5, "Harga": 5000000 }
+      ];
+      
+      const result = downloadExcel(data, 'inventaris_barang');
+      showResult('result3', result.success, result.message, data);
+    }
+  </script>
+</body>
+</html>
